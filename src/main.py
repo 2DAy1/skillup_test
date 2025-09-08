@@ -93,7 +93,7 @@ async def get_detailed_user_interests(
         user_row = user_data.iloc[0]
         total_events = int(user_row['Total Events of Tutorial viewed or Tutorial is saved or 4 others'])
         
-        events = analysis_engine.generate_mock_events(user_id, total_events)
+        events = analysis_engine.get_events_for_user(user_id)
         user_profile = analysis_engine.analyze_user_interests(user_id, events)
         
         return {

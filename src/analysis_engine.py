@@ -9,6 +9,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.models import UserEvent, EventType, UserInterest, UserProfile, InterestResponse
+from src.mixpanel_client import fetch_user_events
 from config.settings import settings
 
 class UserBehaviorAnalysisEngine:
@@ -67,6 +68,29 @@ class UserBehaviorAnalysisEngine:
             events.append(event)
         
         return events
+
+    def get_events_for_user(self, user_id: str) -> List[UserEvent]:
+        """Return events from Mixpanel if enabled, otherwise generate mocks.
+
+        Date window and event names are driven by settings.
+        """
+        if settings.USE_MIXPANEL and settings.MIXPANEL_API_SECRET:
+            to_date = datetime.utcnow().date()
+            from_date = (to_date - timedelta(days=settings.MIXPANEL_DEFAULT_WINDOW_DAYS))
+            try:
+                return fetch_user_events(
+                    user_id=user_id,
+                    from_date=str(from_date),
+                    to_date=str(to_date),
+                    event_names=settings.MIXPANEL_DEFAULT_EVENTS,
+                    api_secret=settings.MIXPANEL_API_SECRET,
+                )
+            except Exception as e:
+                # Fallback to mocks if Mixpanel fails
+                pass
+
+        # Fallback requires an estimate of total events. Use minimal number to avoid empty analysis.
+        return self.generate_mock_events(user_id, total_events=20)
 
     def calculate_time_decay(self, event_time: datetime) -> float:
         days_ago = int((datetime.now() - event_time).days)
@@ -142,7 +166,7 @@ class UserBehaviorAnalysisEngine:
         user_row = user_data.iloc[0]
         total_events = int(user_row['Total Events of Tutorial viewed or Tutorial is saved or 4 others'])
         
-        events = self.generate_mock_events(user_id, total_events)
+        events = self.get_events_for_user(user_id)
         user_profile = self.analyze_user_interests(user_id, events)
         
         top_tags = [
